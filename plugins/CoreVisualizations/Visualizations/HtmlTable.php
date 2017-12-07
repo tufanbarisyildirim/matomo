@@ -11,6 +11,7 @@ namespace Piwik\Plugins\CoreVisualizations\Visualizations;
 use Piwik\API\Request as ApiRequest;
 use Piwik\Common;
 use Piwik\Metrics;
+use Piwik\DataTable;
 use Piwik\Period;
 use Piwik\Plugin\Visualization;
 
@@ -97,11 +98,38 @@ class HtmlTable extends Visualization
             $this->dataTable->applyQueuedFilters();
         }
 
+        if ($this->isFlattened()) {
+            $dimensions = $this->dataTable->getMetadata('dimensions');
+
+            if (is_array($dimensions) && count($dimensions) > 1) {
+                $this->dataTable->filter(function($dataTable) use($dimensions) {
+                    /** @var DataTable $dataTable */
+                    $rows = $dataTable->getRows();
+                    foreach ($rows as $row) {
+                        foreach ($dimensions as $dimension) {
+                            $row->setColumn($dimension, $row->getMetadata($dimension));
+                        }
+                    }
+                });
+
+                $label = array_search('label', $this->config->columns_to_display);
+                if ($label !== false) {
+                    unset($this->config->columns_to_display[$label]);
+                }
+                $this->config->columns_to_display = $dimensions + $this->config->columns_to_display;
+            }
+        }
+
         parent::beforeGenericFiltersAreAppliedToLoadedDataTable();
     }
 
     protected function isPivoted()
     {
         return $this->requestConfig->pivotBy || Common::getRequestVar('pivotBy', '');
+    }
+
+    protected function isFlattened()
+    {
+        return $this->requestConfig->flat || Common::getRequestVar('flat', '');
     }
 }
